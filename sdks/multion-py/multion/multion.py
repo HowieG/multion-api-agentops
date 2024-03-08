@@ -13,7 +13,8 @@ import uuid
 from PIL import Image
 from io import BytesIO
 from IPython.display import Video
-from .agentops_client import AgentOpsClient, Event
+from .agentops_client import AgentOpsClient, ActionEvent, ErrorEvent
+
 
 class _Multion:
     def __init__(self, token_file="multion_token.enc", secrets_file="secrets.json"):
@@ -254,13 +255,12 @@ class _Multion:
                 yield data
 
     def post(self, url, data, canStream=False):
-        
+
         error_message = ""
-        
+
         if self.token is None and self.api_key is None:
             error_message = "You must log in or provide an API key before making API calls."
-            self.agentops.record(result="Fail", returns={
-                "finish_reason": "Fail", "content": error_message})
+            self.agentops.record(ErrorEvent(details=error_message))
 
             raise Exception(error_message)
 
@@ -284,8 +284,8 @@ class _Multion:
             if response.ok:  # checks if status_code is 200-400
                 try:
                     response_json = response.json()["response"]["data"]
-                    self.agentops.record(result="Success", returns={
-                        "finish_reason": "Success", "content": response_json}, screenshot=response_json["screenshot"])
+                    self.agentops.record(ActionEvent(logs={
+                        "finish_reason": "Success", "content": response_json}, screenshot=response_json["screenshot"]))
                     return response_json
                 except json.JSONDecodeError:
                     error_message = "JSONDecodeError: The server didn't respond with valid JSON."
@@ -320,13 +320,11 @@ class _Multion:
             exception_message = f"Failed to get a valid response after {MAX_ATTEMPTS} attempts"
             error_message += "\n" + exception_message
 
-            self.agentops.record(result="Fail", returns={
-                "finish_reason": "Fail", "content": error_message})
+            self.agentops.record(ErrorEvent(details=error_message))
 
             raise Exception(exception_message)
 
-        self.agentops.record(result="Fail", returns={
-            "finish_reason": "Fail", "content": error_message})
+        self.agentops.record(ErrorEvent(details=error_message))
 
     def get(self):
         if self.token is None and self.api_key is None:
@@ -368,7 +366,7 @@ class _Multion:
         url = f"{self.api_url}/browse"
 
         self.agentops.start_session()
-        self.agentops.current_event = Event(event_type="browse")
+        self.agentops.current_event = ActionEvent(detail="browse")
 
         try:
             response = requests.post(url, json=data, headers=headers)
@@ -379,8 +377,8 @@ class _Multion:
         if response.ok:  # checks if status_code is 200-400
             try:
                 response_json = response.json()
-                self.agentops.record(result="Success", returns={
-                    "finish_reason": "Success", "content": response_json}, screenshot=response_json["screenshot"])
+                self.agentops.record(ActionEvent(logs={
+                    "finish_reason": "Success", "content": response_json}, screenshot=response_json["screenshot"]))
                 return response_json
             except json.JSONDecodeError:
                 error_message = "JSONDecodeError: The server didn't respond with valid JSON."
@@ -401,8 +399,7 @@ class _Multion:
             error_message += f"\nResponse text: {response.text}"
             print(error_message)
 
-        self.agentops.record(result="Fail", returns={
-            "finish_reason": "Fail", "content": error_message})
+        self.agentops.record(ErrorEvent(details=error_message))
 
     def new_session(self, data):
         print(
