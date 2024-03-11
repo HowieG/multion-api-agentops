@@ -15,6 +15,10 @@ from io import BytesIO
 from IPython.display import Video
 from .agentops_client import AgentOpsClient, ActionEvent, ErrorEvent
 
+from opentelemetry import trace
+
+tracer = trace.get_tracer(__name__)
+
 
 class _Multion:
     def __init__(self, token_file="multion_token.enc", secrets_file="secrets.json"):
@@ -273,7 +277,9 @@ class _Multion:
                 stream = False
                 if "stream" in data.keys() and data["stream"]:
                     stream = True
-                response = requests.post(url, json=data, headers=headers, stream=stream)
+
+                with tracer.start_as_current_span("request-to-example", attributes={"http.request.body": str(data)}) as span:
+                    response = requests.post(url, json=data, headers=headers, stream=stream)
                 if stream and canStream:
                     return self.parse_stream_chunks(response)
             except requests.exceptions.RequestException as e:
@@ -369,7 +375,8 @@ class _Multion:
         self.agentops.current_event = ActionEvent(detail="browse")
 
         try:
-            response = requests.post(url, json=data, headers=headers)
+            with tracer.start_as_current_span("request-to-example", attributes={"http.request.body": str(data)}) as span:
+                response = requests.post(url, json=data, headers=headers)
         except requests.exceptions.RequestException as e:
             error_message = f"Request failed due to an error: {e}"
             print(error_message)
